@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Motion — Photography Wall</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700;1,900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0a;
+  --text: #f0f0f0;
+  --muted: #777;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  cursor: grab;
+}
+
+body.dragging { cursor: grabbing; }
+
+/* NAV */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.1rem 2rem;
+  gap: 2rem;
+  background: linear-gradient(to bottom, rgba(10,10,10,0.7) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+nav * { pointer-events: auto; }
+
+.nav-brand {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+}
+.nav-links a { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--muted); text-decoration: none; transition: color 0.3s; letter-spacing: 0.01em; }
+.nav-links a:hover, .nav-links a.active { color: var(--text); }
+
+.nav-right {
+  position: absolute; right: 2rem;
+  display: flex; align-items: center; gap: 1rem;
+}
+
+.nav-avatar {
+  display: none;
+}
+
+.theme-toggle {
+  display: none;
+}
+
+.nav-signin {
+  padding: 0.5rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 20px;
+  border: none;
+  background: #ffffff;
+  color: #0a0a0a;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-family: 'Playfair Display', serif;
+}
+.nav-signin:hover {
+  opacity: 0.85;
+}
+
+/* Hamburger (mobile only — hidden by default) */
+.hamburger {
+  display: none;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #ffffff;
+  align-items: center; justify-content: center;
+  cursor: pointer; pointer-events: auto;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 1100;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+.hamburger:hover { opacity: 0.9; }
+.hamburger:active { transform: scale(0.95); }
+.hamburger span {
+  width: 16px; height: 1.5px; background: #0a0a0a;
+  position: relative;
+  transition: transform 0.3s, opacity 0.3s, background 0.3s;
+}
+.hamburger span::before, .hamburger span::after {
+  content: ""; position: absolute; left: 0;
+  width: 16px; height: 1.5px; background: #0a0a0a;
+  transition: transform 0.3s;
+}
+.hamburger span::before { top: -5px; }
+.hamburger span::after { top: 5px; }
+.hamburger.open span { background: transparent; }
+.hamburger.open span::before { transform: translateY(5px) rotate(45deg); }
+.hamburger.open span::after { transform: translateY(-5px) rotate(-45deg); }
+
+/* Mobile drawer */
+.drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 75%; max-width: 280px;
+  background: rgba(15, 15, 15, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-left: 1px solid rgba(255,255,255,0.08);
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1050;
+  display: flex; flex-direction: column;
+  padding: 5rem 1.5rem 2rem;
+  pointer-events: auto;
+}
+.drawer.open { transform: translateX(0); }
+.drawer a {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  transition: color 0.2s, padding-left 0.2s;
+}
+.drawer a:hover, .drawer a.active { color: #fff; padding-left: 0.5rem; }
+.drawer-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 1040;
+}
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+
+/* Bottom gradual blur (mobile only — hidden by default) */
+.bottom-blur { display: none; }
+
+/* INFINITE GRID */
+.wall-container {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.photo-grid {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  will-change: transform;
+}
+
+.photo-row {
+  display: flex;
+  gap: 3px;
+  will-change: transform;
+}
+
+.photo-item {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex: 0 0 140px;
+  overflow: hidden;
+  cursor: pointer;
+  will-change: transform;
+  border-radius: 0px;
+}
+
+.photo-item.tile-wide,
+.photo-item.tile-tall,
+.photo-item.tile-large { /* disabled in row layout */ }
+
+.photo-item img {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+/* Hover title overlay */
+.photo-item .title-overlay {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 8px 6px;
+  background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+  font-family: 'Playfair Display', serif;
+  font-size: 0.65rem;
+  font-style: italic;
+  color: white;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+
+.photo-item:hover .title-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* BOTTOM OVERLAY */
+.bottom-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 2.5rem 3rem 2rem;
+  background: linear-gradient(to top, rgba(10,10,10,0.92) 0%, rgba(10,10,10,0.5) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+.bottom-label {
+  font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7); margin-bottom: 0.4rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.bottom-label::before { content: ''; width: 20px; height: 1px; background: rgba(255, 255, 255, 0.7); }
+
+.bottom-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  font-weight: 400; font-style: italic;
+  line-height: 1.1;
+}
+
+.pressure-char {
+  display: inline-block;
+  font-weight: 400;
+  font-style: italic;
+  transition: font-weight 0.15s ease-out, transform 0.15s ease-out, letter-spacing 0.15s ease-out;
+  transform-origin: center;
+  will-change: font-weight, transform;
+}
+
+.bottom-title-row {
+  display: flex; align-items: flex-end; gap: 1rem;
+}
+
+.bottom-socials {
+  display: flex; gap: 0.75rem; align-items: center;
+  align-self: flex-end; margin-bottom: 0.3rem;
+}
+
+.social-icon {
+  color: #ffffff; transition: opacity 0.3s; pointer-events: auto;
+  display: flex; align-items: center;
+}
+.social-icon:hover { opacity: 0.7; }
+
+.bottom-desc {
+  font-size: 0.75rem; color: rgba(255, 255, 255, 0.7); margin-top: 0.4rem; max-width: 300px;
+}
+
+/* Sign In button shown under description (mobile detail-mode only) */
+.bottom-signin {
+  display: none;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 20px;
+  border: none;
+  background: #ffffff;
+  color: #0a0a0a;
+  cursor: pointer;
+  transition: opacity 0.3s;
+  font-family: 'Playfair Display', serif;
+}
+.bottom-signin:hover { opacity: 0.85; }
+
+/* DETAIL VIEW - info around expanded photo, no popup */
+.detail-info {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.detail-info.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.detail-panel {
+  display: none;
+}
+
+.detail-overlay-info {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 225px);
+  z-index: 1600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.detail-overlay-info.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.detail-overlay-top {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.detail-overlay-top.active {
+  opacity: 1;
+}
+
+.detail-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid #444; background: rgba(30,30,30,0.9);
+  color: var(--text); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 1rem; transition: border-color 0.3s;
+  z-index: 1600;
+  pointer-events: auto;
+}
+.detail-nav:hover { border-color: var(--text); }
+.detail-nav#detailPrev { left: calc(50% - 320px); }
+.detail-nav#detailNext { right: calc(50% - 320px); }
+
+.detail-category {
+  font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 0.25rem;
+}
+
+.detail-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem; font-style: italic; font-weight: 400;
+  text-align: center;
+}
+
+.detail-location {
+  font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); text-align: center; margin-bottom: 0.4rem;
+}
+
+.detail-desc {
+  font-size: 0.78rem; color: var(--muted); text-align: center;
+  max-width: 380px; margin: 0 auto 1rem; line-height: 1.5;
+}
+
+.detail-buttons { display: flex; gap: 0.6rem; }
+
+.detail-btn {
+  padding: 0.55rem 1.4rem; font-size: 0.7rem; font-weight: 500;
+  border-radius: 20px; cursor: pointer; transition: all 0.2s; text-decoration: none;
+}
+.detail-btn-primary { background: var(--text); color: var(--bg); border: none; }
+.detail-btn-primary:hover { opacity: 0.85; }
+.detail-btn-secondary { background: rgba(255,255,255,0.1); color: var(--text); border: 1px solid #444; }
+.detail-btn-secondary:hover { border-color: var(--text); }
+
+.detail-side-icons {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  z-index: 1500;
+  pointer-events: auto;
+}
+
+.detail-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid #444; background: rgba(30,30,30,0.9);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; color: var(--muted); cursor: pointer;
+  transition: border-color 0.3s, color 0.3s;
+}
+.detail-icon:hover { border-color: var(--text); color: var(--text); }
+
+@media (max-width: 768px) {
+  /* Smaller grid tiles for mobile */
+  .photo-grid { gap: 2px; }
+  .photo-row { gap: 2px; }
+  .photo-item { width: 90px; height: 90px; flex: 0 0 90px; }
+
+  /* Compact nav with smaller links and smaller sign-in */
+  nav { padding: 0.9rem 1rem; gap: 0.6rem; }
+  .nav-links { gap: 0.8rem; padding: 0.4rem 0.9rem; }
+  .nav-links a { font-size: 0.78rem; }
+  .nav-right { right: 1rem; }
+  .nav-signin { padding: 0.4rem 0.9rem; font-size: 0.7rem; }
+
+  /* Mobile: hide top nav links + Sign In, show hamburger instead */
+  .nav-links { display: none; }
+  .nav-right .nav-signin { display: none; }
+  .hamburger { display: flex; }
+
+  /* Mobile bottom bar: ALWAYS centered (default + detail-mode) */
+  .bottom-bar {
+    padding: 1.2rem 1.2rem 1.4rem;
+    text-align: center;
+    background: linear-gradient(to top,
+      rgba(10,10,10,0.95) 0%,
+      rgba(10,10,10,0.7) 40%,
+      rgba(10,10,10,0.0) 100%);
+  }
+  .bottom-label {
+    font-size: 0.55rem; margin-bottom: 0.3rem;
+    justify-content: center;
+  }
+  .bottom-label::before { display: none; }
+  .bottom-title { font-size: 2rem; }
+  .bottom-title-row { gap: 0.6rem; justify-content: center; }
+  .bottom-socials { gap: 0.5rem; }
+  .bottom-socials a svg { width: 22px; height: 22px; }
+  .bottom-desc {
+    font-size: 0.7rem; max-width: 320px;
+    margin-left: auto; margin-right: auto;
+  }
+  /* Sign In always visible at bottom on mobile */
+  .bottom-signin {
+    display: inline-flex;
+    margin-top: 0.8rem;
+    pointer-events: auto;
+  }
+
+  /* Gradual blur strip at bottom of page (subtle, not too tall) */
+  .bottom-blur {
+    display: block;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 180px;
+    z-index: 90;
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    -webkit-mask-image: linear-gradient(to top,
+      #000 0%,
+      rgba(0,0,0,0.7) 30%,
+      rgba(0,0,0,0.3) 60%,
+      transparent 100%);
+            mask-image: linear-gradient(to top,
+      #000 0%,
+      rgba(0,0,0,0.7) 30%,
+      rgba(0,0,0,0.3) 60%,
+      transparent 100%);
+  }
+
+  /* Detail view buttons closer to image edges */
+  .detail-nav { width: 36px; height: 36px; font-size: 0.9rem; }
+  .detail-nav#detailPrev { left: 8px; }
+  .detail-nav#detailNext { right: 8px; }
+
+  /* Detail title block: smaller, closer to image */
+  .detail-overlay-top { top: 60px; }
+  .detail-overlay-info { transform: translate(-50%, 165px); }
+  .detail-title { font-size: 1.2rem; }
+  .detail-category { font-size: 0.55rem; }
+  .detail-location { font-size: 0.55rem; }
+  .detail-desc { font-size: 0.7rem; max-width: 88vw; padding: 0 1rem; }
+  .detail-buttons { gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+  .detail-btn { padding: 0.5rem 1rem; font-size: 0.65rem; }
+}
+
+@media (max-width: 480px) {
+  .photo-grid {
+    grid-template-columns: repeat(40, 80px);
+    grid-template-rows: repeat(40, 80px);
+  }
+  .bottom-title { font-size: 1.7rem; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <ul class="nav-links">
+    <li><a href="#" class="active">Home</a></li>
+    <li><a href="staking.html">Staking</a></li>
+    <li><a href="staking.html#/leaderboard">Leaderboard</a></li>
+  </ul>
+  <div class="nav-right">
+    <button class="nav-signin">Sign In</button>
+    <button class="hamburger" id="hamburger" aria-label="Menu"><span></span></button>
+  </div>
+</nav>
+
+<!-- Mobile drawer -->
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer">
+  <a href="#" class="active">Home</a>
+  <a href="staking.html">Staking</a>
+  <a href="staking.html#/leaderboard">Leaderboard</a>
+</aside>
+
+<!-- Mobile bottom gradual blur -->
+<div class="bottom-blur"></div>
+
+<div class="wall-container">
+  <div class="photo-grid" id="photoGrid"></div>
+</div>
+
+<div class="bottom-bar">
+  <div class="bottom-label">Digital Art Exhibition</div>
+  <div class="bottom-title-row">
+    <h1 class="bottom-title" id="pressureTitle"><span class="pressure-char">A</span><span class="pressure-char">r</span><span class="pressure-char">t</span><span class="pressure-char">n</span><span class="pressure-char">e</span><span class="pressure-char">s</span><span class="pressure-char">h</span></h1>
+    <div class="bottom-socials">
+      <a href="https://x.com/artnesh" target="_blank" aria-label="X/Twitter" class="social-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+      <a href="mailto:artnesh06@gmail.com" aria-label="Email" class="social-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      </a>
+    </div>
+  </div>
+  <p class="bottom-desc">The wall starts wherever your cursor goes.<br>Click to explore each artwork.</p>
+  <button class="bottom-signin">Sign In</button>
+</div>
+
+<!-- DETAIL VIEW - overlay info (no popup) -->
+<div class="detail-nav" id="detailPrev" style="display:none;">‹</div>
+<div class="detail-nav" id="detailNext" style="display:none;">›</div>
+<div class="detail-overlay-top" id="detailOverlayTop" style="display:none;">
+  <div class="detail-category" id="detailCategory">LANDSCAPE</div>
+  <div class="detail-title" id="detailTitle">Spire</div>
+  <div class="detail-location" id="detailLocation">CHAMONIX, FRANCE · 2023</div>
+</div>
+<div class="detail-overlay-info" id="detailOverlay">
+  <div class="detail-desc" id="detailDesc" style="display:none;"></div>
+  <div class="detail-buttons">
+    <a class="detail-btn detail-btn-primary" id="detailStakeBtn" href="staking.html">Stake Now</a>
+    <a class="detail-btn detail-btn-secondary" id="detailOpenseaBtn" href="#" target="_blank" rel="noopener">See on OpenSea</a>
+  </div>
+</div>
+<div class="detail-icon" id="detailClose" style="display:none;"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+// Top 20 Mega Rebel + Top 18 Punkers (by OpenSea rarity rank) + Cwameleon (IPFS)
+const PUNKER_DESC = 'Punk life forever, never die.';
+const REBEL_DESC = 'Stay Rebel. Backed by you.';
+const CWAM_DESC = 'Not just a chameleon.';
+const CWAM_BASE = 'https://ipfs.io/ipfs/QmUA354FhmX3NeyeGrmiWUesU1uukPXPEMVwDG7ZVvZskc/';
+
+const megaRebels = [
+  '9400e7f3b32351dd75cc6f2f74a0d4/569400e7f3b32351dd75cc6f2f74a0d4',
+  'db007037e42d1517ddf525fadb6d95/9ddb007037e42d1517ddf525fadb6d95',
+  'eb28e762848308c243aeb652d28881/a1eb28e762848308c243aeb652d28881',
+  '95f3de774e5935a7267933c20ccb92/cf95f3de774e5935a7267933c20ccb92',
+  '8f4091f5978ca248b6a264c37baa95/138f4091f5978ca248b6a264c37baa95',
+  '0635dda52c9f38edcd3a35d0c520ba/b80635dda52c9f38edcd3a35d0c520ba',
+  'c6aead5b58e68b23eff14140ce213d/a9c6aead5b58e68b23eff14140ce213d',
+  'c507f7261bc8634959920bc05abe47/f9c507f7261bc8634959920bc05abe47',
+  '0111323696597b642ce22513815620/6c0111323696597b642ce22513815620',
+  'd40d1b028024653c428b65b3487e62/cbd40d1b028024653c428b65b3487e62',
+  '38575399fa8581d3757e9ed57de4b5/8f38575399fa8581d3757e9ed57de4b5',
+  'f903a6a22243b99d5277a0cceca4d0/08f903a6a22243b99d5277a0cceca4d0',
+  'c140f786fc1e175e4c94342404ba58/f5c140f786fc1e175e4c94342404ba58',
+  'a7076d30bfa6724abfb4b90fd50b48/4ea7076d30bfa6724abfb4b90fd50b48',
+  '49c67dfef2b05fb3afb4357d2658c2/6949c67dfef2b05fb3afb4357d2658c2',
+  'b5971f40090081af8555ae14aa7b5b/97b5971f40090081af8555ae14aa7b5b',
+  '161dfbeacaf27ff0026e27513237ae/49161dfbeacaf27ff0026e27513237ae',
+  'b2de9e85b2986fca51e26f95e192fe/efb2de9e85b2986fca51e26f95e192fe',
+  'b1d0476321c42d9b50e375d2443eb8/42b1d0476321c42d9b50e375d2443eb8',
+  'a367efd93f696f475f3342e02d461d/c8a367efd93f696f475f3342e02d461d',
+];
+
+const punkers = [
+  '61e1d31aca1ed50279d6c955584d33/1661e1d31aca1ed50279d6c955584d33',
+  '63aca3c4d64a0d6f2bef8dce8d1724/1463aca3c4d64a0d6f2bef8dce8d1724',
+  'fb99115b3b0fb645ab4c748ca17057/2efb99115b3b0fb645ab4c748ca17057',
+  'fa7eebbfd2b2d350e8958eaf8e7b0f/66fa7eebbfd2b2d350e8958eaf8e7b0f',
+  'ef493b7d27817f53e302358921cc7b/60ef493b7d27817f53e302358921cc7b',
+  'b15e677d67cc5b32c4847817db4987/8fb15e677d67cc5b32c4847817db4987',
+  'd2fa99c046131af6ca630173e60f38/9bd2fa99c046131af6ca630173e60f38',
+  'cdb0a900f444217e7fce50f6155d81/e3cdb0a900f444217e7fce50f6155d81',
+  '3bb6673c855c092be850e83cd52765/673bb6673c855c092be850e83cd52765',
+  'e6fa13ed8a2537346bb2de6eb047c1/e3e6fa13ed8a2537346bb2de6eb047c1',
+  '993abc506d3260cad67b322b4e15cb/27993abc506d3260cad67b322b4e15cb',
+  '68095b64c9b6e6cf139449f7b8241a/1f68095b64c9b6e6cf139449f7b8241a',
+  'cc746ab4fe07f240ac19c4ee3eadbc/5bcc746ab4fe07f240ac19c4ee3eadbc',
+  'b19c4cd1c486491131298712c2114b/88b19c4cd1c486491131298712c2114b',
+  '630c8720c63f616738370cf0189ef2/b9630c8720c63f616738370cf0189ef2',
+  'b58f3edcd5f7ed27d4a43048fea4de/c3b58f3edcd5f7ed27d4a43048fea4de',
+  'a26b1f38981a5f79d145e45e4b8825/57a26b1f38981a5f79d145e45e4b8825',
+  '0db9e28db30dac51b7a3fce4143828/5e0db9e28db30dac51b7a3fce4143828',
+];
+
+const REBEL_BASE = 'https://i2c.seadn.io/megaeth/0xeb8a15bb1b9842bee34caf5823bc7a7017c0d4ac/';
+const PUNKER_BASE = 'https://i2c.seadn.io/ethereum/0x3b9b467ef39310cac0318fd766b805d2cb2143d0/';
+
+// Collection metadata for routing to the staking page + OpenSea links
+const COLLECTION_META = {
+  REBEL:   { id: 'megarebel', os: 'https://opensea.io/collection/megarebel' },
+  PUNKER:  { id: 'punkers',   os: 'https://opensea.io/collection/punkersnft' },
+  CWAM:    { id: 'cwameleon', os: 'https://opensea.io/collection/cwameleonnft' },
+};
+
+// Interleave: Mega Rebel + Punkers + Cwameleon for visual variety.
+const photos = [];
+let _id = 1;
+const _max = Math.max(megaRebels.length, punkers.length, 20);
+for (let i = 0; i < _max; i++) {
+  if (i < megaRebels.length) {
+    photos.push({
+      id: _id++,
+      src: REBEL_BASE + megaRebels[i] + '.png?w=350',
+      title: 'Mega Rebel · Rank #' + (i + 1),
+      category: 'MEGA REBEL',
+      location: 'MEGAETH · TOP 20 RARITY',
+      desc: REBEL_DESC,
+      coll: 'REBEL',
+    });
+  }
+  if (i < punkers.length) {
+    photos.push({
+      id: _id++,
+      src: PUNKER_BASE + punkers[i] + '.png?w=350',
+      title: 'Punkers · Rank #' + (i + 1),
+      category: 'PUNKERS',
+      location: 'ETHEREUM · TOP 18 RARITY',
+      desc: PUNKER_DESC,
+      coll: 'PUNKER',
+    });
+  }
+  if (i < 10) {
+    photos.push({
+      id: _id++,
+      src: CWAM_BASE + (i + 1),
+      title: 'Cwameleon #' + (i + 1),
+      category: 'CWAMELEON',
+      location: 'ETHEREUM · 2026',
+      desc: CWAM_DESC,
+      coll: 'CWAM',
+    });
+  }
+}
+
+// === BUILD INFINITE TILING GRID ===
+// We render 40x40 = 1600 tiles (a 2x2 tile of the 20x20 base grid).
+// Wrapping is done modulo the BASE grid (20*tile) so a full base grid
+// is always covering the viewport in any direction the user pans.
+const COLS = 40;
+const ROWS = 40;
+const BASE_COLS = 20;
+const BASE_ROWS = 20;
+// Responsive tile size: base on viewport
+const _isSmall = window.matchMedia('(max-width: 480px)').matches;
+const _isMobile = window.matchMedia('(max-width: 768px)').matches;
+const _tileSize = _isSmall ? 80 : (_isMobile ? 90 : 140);
+const _tileGap = _isMobile ? 2 : 3;
+const TILE_W = _tileSize + _tileGap;
+const TILE_H = _tileSize + _tileGap;
+const GRID_W = BASE_COLS * TILE_W; // wrap distance (one base grid)
+const GRID_H = BASE_ROWS * TILE_H;
+
+// Responsive zoom scale based on tile size
+const ZOOM_SCALE = _isSmall ? 3.6 : (_isMobile ? 3.4 : 3.5);
+
+const grid = document.getElementById('photoGrid');
+
+// Fill grid with shuffled photos so no duplicate sits next to itself,
+// and the layout reshuffles on every refresh.
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Build a per-cell photo index assignment.
+// Strategy: in each BASE 20x20 tile, randomly distribute photos so each photo
+// appears at most a few times and adjacent tiles have different photos.
+// We then mirror the same pattern into the larger 40x40 render grid so wrap is seamless.
+const baseAssign = new Array(BASE_COLS * BASE_ROWS);
+const baseSize = BASE_COLS * BASE_ROWS;
+// Repeat shuffled list as many times as needed to cover baseSize
+const reps = Math.ceil(baseSize / photos.length);
+let pool = [];
+for (let r = 0; r < reps; r++) pool = pool.concat(shuffle([...Array(photos.length).keys()]));
+
+// Place with adjacency check (try to avoid same photo touching horizontally/vertically)
+for (let i = 0; i < baseSize; i++) {
+  const col = i % BASE_COLS;
+  const row = Math.floor(i / BASE_COLS);
+  let pickIdx = -1;
+  for (let attempt = 0; attempt < pool.length; attempt++) {
+    const candidate = pool[attempt];
+    const left = col > 0 ? baseAssign[row * BASE_COLS + (col - 1)] : -2;
+    const up = row > 0 ? baseAssign[(row - 1) * BASE_COLS + col] : -2;
+    if (candidate !== left && candidate !== up) {
+      pickIdx = attempt;
+      break;
+    }
+  }
+  if (pickIdx === -1) pickIdx = 0;
+  baseAssign[i] = pool.splice(pickIdx, 1)[0];
+}
+
+for (let r = 0; r < ROWS; r++) {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'photo-row';
+  rowEl.dataset.row = r;
+  // Per-row horizontal auto-scroll offset (alternating direction).
+  // Even rows go left (negative), odd rows go right (positive).
+  rowEl.dataset.autoX = '0';
+  rowEl.dataset.dir = (r % 2 === 0) ? '-1' : '1';
+  for (let c = 0; c < COLS; c++) {
+    const col = c;
+    const row = r;
+    const baseCol = col % BASE_COLS;
+    const baseRow = row % BASE_ROWS;
+    const photoIdx = baseAssign[baseRow * BASE_COLS + baseCol];
+    const photo = photos[photoIdx];
+
+    const item = document.createElement('div');
+    item.className = 'photo-item';
+    item.dataset.index = photoIdx;
+
+    const img = document.createElement('img');
+    img.src = photo.src;
+    img.alt = photo.title;
+    img.loading = 'lazy';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'title-overlay';
+    titleEl.textContent = photo.title;
+
+    item.appendChild(img);
+    item.appendChild(titleEl);
+    rowEl.appendChild(item);
+
+    item.addEventListener('click', (e) => {
+      if (!isDragClick) {
+        if (detailActive) {
+          const newIndex = parseInt(item.dataset.index);
+          switchDetailTo(newIndex, item);
+        } else {
+          openLightbox(photoIdx, item);
+        }
+      }
+    });
+  }
+  grid.appendChild(rowEl);
+}
+
+const rowEls = Array.from(grid.querySelectorAll('.photo-row'));
+
+// === INFINITE SCROLL / DRAG ===
+const TOTAL_W = COLS * TILE_W; // total rendered grid width
+const TOTAL_H = ROWS * TILE_H;
+let posX = -TOTAL_W / 2 + window.innerWidth / 2;
+let posY = -TOTAL_H / 2 + window.innerHeight / 2;
+let targetX = posX;
+let targetY = posY;
+let isDragging = false;
+let isDragClick = false;
+let startX, startY, dragStartX, dragStartY;
+
+function updateGridPosition() {
+  // Vertical wrap (whole grid moves vertically with drag).
+  const wrapY = ((posY % GRID_H) + GRID_H) % GRID_H - GRID_H;
+  grid.style.transform = `translateY(${wrapY}px)`;
+
+  // Per-row horizontal: drag offset (posX) + per-row auto offset, both wrapped.
+  // Auto offset is advanced even while dragging (does not pause).
+  if (!detailActive) {
+    for (let i = 0; i < rowEls.length; i++) {
+      const el = rowEls[i];
+      const dir = parseFloat(el.dataset.dir);
+      // AUTO_SPEED: pixels per frame. Pelan banget = small number.
+      const AUTO_SPEED = 0.02;
+      let auto = parseFloat(el.dataset.autoX) + dir * AUTO_SPEED;
+      el.dataset.autoX = String(auto);
+      const total = posX + auto;
+      const wrapX = ((total % GRID_W) + GRID_W) % GRID_W - GRID_W;
+      el.style.transform = `translateX(${wrapX}px)`;
+    }
+  } else {
+    // When detail open, freeze rows where they are (no auto advance, no posX change).
+    for (let i = 0; i < rowEls.length; i++) {
+      const el = rowEls[i];
+      const auto = parseFloat(el.dataset.autoX);
+      const total = posX + auto;
+      const wrapX = ((total % GRID_W) + GRID_W) % GRID_W - GRID_W;
+      el.style.transform = `translateX(${wrapX}px)`;
+    }
+  }
+
+  requestAnimationFrame(updateGridPosition);
+}
+
+// Smooth lerp
+function animate() {
+  posX += (targetX - posX) * 0.08;
+  posY += (targetY - posY) * 0.08;
+}
+
+setInterval(animate, 16);
+requestAnimationFrame(updateGridPosition);
+
+// Mouse drag
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.detail-info')) return;
+  if (detailActive) return;
+  if (e.target.closest('nav') || e.target.closest('.bottom-bar')) return;
+  isDragging = true;
+  isDragClick = false;
+  startX = e.clientX;
+  startY = e.clientY;
+  dragStartX = targetX;
+  dragStartY = targetY;
+  document.body.classList.add('dragging');
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDragClick = true;
+  targetX = dragStartX + dx;
+  targetY = dragStartY + dy;
+});
+
+document.addEventListener('mouseup', () => {
+  isDragging = false;
+  document.body.classList.remove('dragging');
+  // Reset isDragClick after a tick so click handlers can check it
+  setTimeout(() => { isDragClick = false; }, 10);
+});
+
+// Touch support
+document.addEventListener('touchstart', (e) => {
+  if (e.target.closest('.lightbox-overlay') || e.target.closest('nav')) return;
+  if (detailActive) return; // Lock touch drag when detail open
+  isDragging = true;
+  isDragClick = false;
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+  dragStartX = targetX;
+  dragStartY = targetY;
+});
+
+document.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  const dx = e.touches[0].clientX - startX;
+  const dy = e.touches[0].clientY - startY;
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDragClick = true;
+  targetX = dragStartX + dx;
+  targetY = dragStartY + dy;
+});
+
+document.addEventListener('touchend', () => {
+  isDragging = false;
+  setTimeout(() => { isDragClick = false; }, 10);
+});
+
+// Scroll wheel support
+document.addEventListener('wheel', (e) => {
+  if (detailActive) { e.preventDefault(); return; } // Lock scroll when detail open
+  if (e.target.closest('.detail-info')) return;
+  targetX -= e.deltaX * 0.8;
+  targetY -= e.deltaY * 0.8;
+  e.preventDefault();
+}, { passive: false });
+
+// === GSAP INTRO ===
+const items = document.querySelectorAll('.photo-item');
+let introComplete = false;
+
+gsap.set(items, {
+  opacity: 0,
+  scale: 0.3,
+  x: () => (Math.random() - 0.5) * window.innerWidth,
+  y: () => (Math.random() - 0.5) * window.innerHeight,
+  rotation: () => (Math.random() - 0.5) * 40,
+});
+
+const introTl = gsap.to(items, {
+  opacity: 1,
+  scale: 1,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  duration: 0.8,
+  ease: 'power3.out',
+  stagger: { amount: 1.0, from: 'random' },
+  delay: 0.2,
+});
+
+introTl.then(() => { introComplete = true; });
+
+// === HOVER ZOOM ===
+let activeHoverItem = null;
+
+items.forEach((item) => {
+  item.addEventListener('mouseenter', () => {
+    if (!introComplete || isDragging || detailActive) return;
+    if (activeHoverItem === item) return;
+    activeHoverItem = item;
+
+    // Kill all tweens to prevent stacking
+    items.forEach(o => gsap.killTweensOf(o));
+
+    gsap.to(item, {
+      scale: 2,
+      zIndex: 100,
+      duration: 0.5,
+      ease: 'power3.out',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
+      borderRadius: '0px',
+      overwrite: true,
+    });
+
+    // Push neighboring photos away
+    const hoveredRect = item.getBoundingClientRect();
+    const hx = hoveredRect.left + hoveredRect.width / 2;
+    const hy = hoveredRect.top + hoveredRect.height / 2;
+
+    items.forEach((other) => {
+      if (other === item) return;
+      const otherRect = other.getBoundingClientRect();
+      const ox = otherRect.left + otherRect.width / 2;
+      const oy = otherRect.top + otherRect.height / 2;
+
+      const dx = ox - hx;
+      const dy = oy - hy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const maxDist = 400;
+
+      if (dist < maxDist) {
+        const force = (1 - dist / maxDist) * 100;
+        const angle = Math.atan2(dy, dx);
+        const pushX = Math.cos(angle) * force;
+        const pushY = Math.sin(angle) * force;
+
+        gsap.to(other, {
+          x: pushX,
+          y: pushY,
+          scale: 0.8,
+          duration: 0.4,
+          ease: 'power2.out',
+          overwrite: true,
+        });
+      }
+    });
+  });
+
+  item.addEventListener('mouseleave', () => {
+    if (!introComplete || detailActive) return;
+    activeHoverItem = null;
+
+    items.forEach(o => gsap.killTweensOf(o));
+
+    gsap.to(item, {
+      scale: 1,
+      zIndex: 1,
+      duration: 0.35,
+      ease: 'power2.inOut',
+      boxShadow: '0 0 0 rgba(0,0,0,0)',
+      borderRadius: '0px',
+    });
+
+    // Reset neighbors
+    items.forEach((other) => {
+      if (other === item) return;
+      gsap.to(other, {
+        x: 0,
+        y: 0,
+        scale: 1,
+        duration: 0.4,
+        ease: 'power2.inOut',
+      });
+    });
+  });
+});
+
+// === DETAIL VIEW (photo zooms to center, others scatter) ===
+let currentIndex = 0;
+let detailActive = false;
+let activeDetailItem = null;
+const detailOverlay = document.getElementById('detailOverlay');
+const detailOverlayTop = document.getElementById('detailOverlayTop');
+const detailPrev = document.getElementById('detailPrev');
+const detailNext = document.getElementById('detailNext');
+const detailCloseBtn = document.getElementById('detailClose');
+
+function openLightbox(index, clickedItem) {
+  if (detailActive) return;
+  detailActive = true;
+  document.body.classList.add('detail-mode');
+  currentIndex = index;
+
+  // Use the actual clicked item; fallback to first matching one
+  if (!clickedItem) {
+    const allItems = Array.from(items);
+    clickedItem = allItems.find(el => parseInt(el.dataset.index) === index);
+  }
+  activeDetailItem = clickedItem;
+
+  // Lift the row that contains clickedItem above other rows so clickedItem's
+  // z-index can actually win across stacking contexts (each row has its own
+  // due to translateX transform).
+  rowEls.forEach(r => { r.style.zIndex = '0'; });
+  const parentRow = clickedItem.closest('.photo-row');
+  if (parentRow) parentRow.style.zIndex = '1000';
+
+  updateDetailInfo();
+
+  // Show nav buttons and close
+  detailPrev.style.display = 'flex';
+  detailNext.style.display = 'flex';
+  detailOverlay.classList.add('active');
+  detailOverlayTop.classList.add('active');
+
+  // Reset ALL items first to clear any hover transforms — so positions are real
+  items.forEach((it) => {
+    gsap.killTweensOf(it);
+    gsap.set(it, { x: 0, y: 0, scale: 1, rotation: 0 });
+  });
+
+  // Force the clicked item to be square while zoomed
+  // (use the smaller dimension so it fits inside the original cell)
+  const baseRect = clickedItem.getBoundingClientRect();
+  const sq = Math.min(baseRect.width, baseRect.height);
+  clickedItem.dataset.origW = baseRect.width;
+  clickedItem.dataset.origH = baseRect.height;
+  clickedItem.style.width = sq + 'px';
+  clickedItem.style.height = sq + 'px';
+
+  // Now calculate clicked item position (clean, no transform interference)
+  const rect = clickedItem.getBoundingClientRect();
+  const itemCenterX = rect.left + rect.width / 2;
+  const itemCenterY = rect.top + rect.height / 2;
+  const screenCenterX = window.innerWidth / 2;
+  const screenCenterY = window.innerHeight / 2;
+  const moveX = screenCenterX - itemCenterX;
+  const moveY = screenCenterY - itemCenterY - 40;
+
+  // Zoom clicked item to center
+  gsap.to(clickedItem, {
+    x: moveX,
+    y: moveY,
+    scale: ZOOM_SCALE,
+    zIndex: 1500,
+    duration: 0.6,
+    ease: 'power3.out',
+  });
+
+  // Push all other items to edges but keep close and visible
+  items.forEach((item) => {
+    if (item === clickedItem) return;
+    const r = item.getBoundingClientRect();
+    const ix = r.left + r.width / 2;
+    const iy = r.top + r.height / 2;
+    const dx = ix - screenCenterX;
+    const dy = iy - screenCenterY;
+    const angle = Math.atan2(dy, dx);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    // Gentle push + random offset for organic scattered look
+    const push = Math.max(80, 250 - dist * 0.1) + (Math.random() * 60 - 30);
+    const randomRotation = (Math.random() - 0.5) * 12;
+
+    gsap.to(item, {
+      x: Math.cos(angle) * push + (Math.random() - 0.5) * 40,
+      y: Math.sin(angle) * push + (Math.random() - 0.5) * 40,
+      opacity: 0.7,
+      scale: 0.75,
+      rotation: randomRotation,
+      duration: 0.7,
+      ease: 'power3.out',
+      overwrite: true,
+    });
+  });
+}
+
+function closeLightbox() {
+  if (!detailActive) return;
+  detailActive = false;
+  document.body.classList.remove('detail-mode');
+
+  // Hide nav and info
+  detailPrev.style.display = 'none';
+  detailNext.style.display = 'none';
+  detailOverlay.classList.remove('active');
+  detailOverlayTop.classList.remove('active');
+
+  // Reset all items
+  items.forEach((item) => {
+    gsap.to(item, {
+      x: 0, y: 0, scale: 1, opacity: 1, zIndex: 1, rotation: 0,
+      duration: 0.5, ease: 'power2.inOut', overwrite: true,
+    });
+  });
+  // Reset row z-index back
+  rowEls.forEach(r => { r.style.zIndex = ''; });
+  activeDetailItem = null;
+}
+
+function updateDetailInfo() {
+  const p = photos[currentIndex];
+  document.getElementById('detailCategory').textContent = p.category;
+  document.getElementById('detailTitle').textContent = p.title;
+  document.getElementById('detailLocation').textContent = p.location;
+  document.getElementById('detailDesc').textContent = p.desc;
+
+  // Wire Stake Now -> staking page for this exact collection
+  const meta = COLLECTION_META[p.coll];
+  const stakeBtn = document.getElementById('detailStakeBtn');
+  const osBtn = document.getElementById('detailOpenseaBtn');
+  if (meta) {
+    stakeBtn.setAttribute('href', `staking.html#/c/${meta.id}`);
+    osBtn.setAttribute('href', meta.os);
+  } else {
+    stakeBtn.setAttribute('href', 'staking.html');
+    osBtn.setAttribute('href', 'https://opensea.io');
+  }
+}
+
+function navigateDetail(dir) {
+  if (!activeDetailItem) return;
+  const oldItem = activeDetailItem;
+
+  currentIndex = (currentIndex + dir + photos.length) % photos.length;
+  updateDetailInfo();
+
+  // Find new target — closest one with matching index
+  const allItems = Array.from(items);
+  const matching = allItems.filter(el => parseInt(el.dataset.index) === currentIndex);
+  const screenCX = window.innerWidth / 2;
+  const screenCY = window.innerHeight / 2;
+  let newItem = matching[0];
+  let minDist = Infinity;
+  matching.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const d = Math.hypot(cx - screenCX, cy - screenCY);
+    if (d < minDist) { minDist = d; newItem = el; }
+  });
+
+  if (newItem === oldItem) return;
+
+  // Move row z-index to the new active photo's row.
+  rowEls.forEach(r => { r.style.zIndex = '0'; });
+  const parentRow = newItem.closest('.photo-row');
+  if (parentRow) parentRow.style.zIndex = '1000';
+
+  slideToItem(newItem, oldItem);
+}
+
+function slideToItem(newItem, oldItem) {
+  // Current screen-space center of new target (before transform)
+  const newCurX = parseFloat(gsap.getProperty(newItem, 'x')) || 0;
+  const newCurY = parseFloat(gsap.getProperty(newItem, 'y')) || 0;
+  const newRect = newItem.getBoundingClientRect();
+  const newOrigCX = newRect.left + newRect.width / 2 - newCurX;
+  const newOrigCY = newRect.top + newRect.height / 2 - newCurY;
+
+  const screenCX = window.innerWidth / 2;
+  const screenCY = window.innerHeight / 2;
+
+  // Move new item to center
+  const newMoveX = screenCX - newOrigCX;
+  const newMoveY = (screenCY - 40) - newOrigCY;
+
+  gsap.to(newItem, {
+    x: newMoveX,
+    y: newMoveY,
+    scale: ZOOM_SCALE,
+    zIndex: 1500,
+    opacity: 1,
+    rotation: 0,
+    duration: 0.6,
+    ease: 'power3.out',
+    overwrite: true,
+  });
+
+  // Redistribute everyone else scattered around the screen
+  items.forEach(item => {
+    if (item === newItem) return;
+
+    const curX = parseFloat(gsap.getProperty(item, 'x')) || 0;
+    const curY = parseFloat(gsap.getProperty(item, 'y')) || 0;
+    const r = item.getBoundingClientRect();
+    // Original (untransformed) position of this item's center
+    const origCX = r.left + r.width / 2 - curX;
+    const origCY = r.top + r.height / 2 - curY;
+
+    // Direction from screen center to item's original position
+    const dx = origCX - screenCX;
+    const dy = origCY - screenCY;
+    const angle = Math.atan2(dy, dx) || (Math.random() * Math.PI * 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Same scatter formula as openLightbox: just push from current origin
+    const push = Math.max(80, 250 - dist * 0.1) + (Math.random() * 60 - 30);
+    const targetX = Math.cos(angle) * push + (Math.random() - 0.5) * 40;
+    const targetY = Math.sin(angle) * push + (Math.random() - 0.5) * 40;
+    const rot = (Math.random() - 0.5) * 12;
+
+    gsap.to(item, {
+      x: targetX,
+      y: targetY,
+      scale: 0.75,
+      opacity: 0.7,
+      rotation: rot,
+      zIndex: 1,
+      duration: 0.7,
+      ease: 'power3.out',
+      overwrite: true,
+    });
+  });
+
+  activeDetailItem = newItem;
+}
+
+function switchDetailTo(newIndex, newItem) {
+  if (!activeDetailItem || newItem === activeDetailItem) return;
+  const oldItem = activeDetailItem;
+  currentIndex = newIndex;
+  // Move row z-index to the new clicked photo's row.
+  rowEls.forEach(r => { r.style.zIndex = '0'; });
+  const parentRow = newItem.closest('.photo-row');
+  if (parentRow) parentRow.style.zIndex = '1000';
+  updateDetailInfo();
+  slideToItem(newItem, oldItem);
+}
+
+detailCloseBtn.addEventListener('click', closeLightbox);
+detailPrev.addEventListener('click', () => navigateDetail(-1));
+detailNext.addEventListener('click', () => navigateDetail(1));
+
+// Click outside to close
+document.addEventListener('mousedown', (e) => {
+  if (!detailActive) return;
+  if (e.target.closest('#detailOverlay') || e.target.closest('#detailPrev') || e.target.closest('#detailNext') || e.target.closest('#detailClose') || e.target.closest('.photo-item')) return;
+  closeLightbox();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!detailActive) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') navigateDetail(-1);
+  if (e.key === 'ArrowRight') navigateDetail(1);
+});
+
+// === HAMBURGER / DRAWER (mobile) ===
+const hamburger = document.getElementById('hamburger');
+const drawer = document.getElementById('drawer');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+function toggleDrawer(open) {
+  const willOpen = open ?? !drawer.classList.contains('open');
+  drawer.classList.toggle('open', willOpen);
+  drawerBackdrop.classList.toggle('open', willOpen);
+  hamburger.classList.toggle('open', willOpen);
+}
+hamburger?.addEventListener('click', () => toggleDrawer());
+drawerBackdrop?.addEventListener('click', () => toggleDrawer(false));
+drawer?.querySelectorAll('a').forEach(a => a.addEventListener('click', () => toggleDrawer(false)));
+
+// === TEXT PRESSURE EFFECT (Artnesh) ===
+let pressureMouseX = -9999, pressureMouseY = -9999;
+
+document.addEventListener('mousemove', (e) => {
+  pressureMouseX = e.clientX;
+  pressureMouseY = e.clientY;
+});
+
+function updatePressure() {
+  pressureChars.forEach(char => {
+    const rect = char.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dist = Math.hypot(pressureMouseX - cx, pressureMouseY - cy);
+    const maxDist = 200;
+    const proximity = Math.max(0, 1 - dist / maxDist);
+    const weight = Math.round(400 + proximity * 500);
+    const scale = 1 + proximity * 0.25;
+    const stretch = proximity * 4;
+    char.style.fontWeight = weight;
+    char.style.transform = `scale(${scale})`;
+    char.style.letterSpacing = `${stretch}px`;
+  });
+  requestAnimationFrame(updatePressure);
+}
+requestAnimationFrame(updatePressure);
+</script>
+</body>
+</html>
